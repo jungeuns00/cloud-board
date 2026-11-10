@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cloud Board</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #f4f5f7; color: #1f2328; margin: 0; }
+    header { background: #1f3a5f; color: #fff; padding: 16px 24px; }
+    header h1 { margin: 0; font-size: 20px; }
+    main { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    section { background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    h2 { margin: 0 0 14px; font-size: 16px; }
+    label { display: block; font-size: 13px; margin: 10px 0 4px; color: #57606a; }
+    input, textarea { width: 100%; padding: 8px 10px; border: 1px solid #d0d7de; border-radius: 6px; font: inherit; }
+    textarea { min-height: 110px; resize: vertical; }
+    button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #d0d7de; background: #f6f8fa; cursor: pointer; }
+    button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    button.danger { color: #cf222e; }
+    .actions { margin-top: 14px; display: flex; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eaeef2; font-size: 14px; }
+    th { color: #57606a; font-weight: 600; }
+    td.title a { color: #0969da; text-decoration: none; cursor: pointer; }
+    .muted { color: #6e7781; font-size: 13px; }
+    #detail-content { white-space: pre-wrap; line-height: 1.6; margin: 14px 0; }
+    #message { color: #cf222e; font-size: 13px; min-height: 18px; margin-top: 8px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header><h1>Cloud Board</h1></header>
+  <main>
+    <section id="detail" class="hidden">
+      <h2 id="detail-title"></h2>
+      <div class="muted" id="detail-meta"></div>
+      <div id="detail-content"></div>
+      <div class="actions">
+        <button id="btn-edit">수정</button>
+        <button id="btn-delete" class="danger">삭제</button>
+        <button id="btn-close">닫기</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="form-heading">새 글 작성</h2>
+      <form id="post-form">
+        <label for="author">작성자</label>
+        <input id="author" maxlength="50" required />
+        <label for="title">제목</label>
+        <input id="title" maxlength="200" required />
+        <label for="content">내용</label>
+        <textarea id="content" required></textarea>
+        <div class="actions">
+          <button type="submit" class="primary" id="btn-submit">등록</button>
+          <button type="button" id="btn-cancel" class="hidden">취소</button>
+        </div>
+        <div id="message"></div>
+      </form>
+    </section>
+
+    <section>
+      <h2>게시글 목록</h2>
+      <table>
+        <thead><tr><th style="width:60px">번호</th><th>제목</th><th style="width:120px">작성자</th><th style="width:170px">작성일</th></tr></thead>
+        <tbody id="post-list"></tbody>
+      </table>
+      <p class="muted hidden" id="empty">아직 게시글이 없습니다.</p>
+    </section>
+  </main>
+
+  <script>
+    const API = "/api/posts";
+    const $ = (id) => document.getElementById(id);
+    let editingId = null;   // 수정 중인 글 id (null이면 새 글 작성)
+    let current = null;     // 상세 보기 중인 글
+
+    const fmt = (iso) => new Date(iso).toLocaleString("ko-KR");
+
+    async function request(url, options = {}) {
+      const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body.detail === "string" ? body.detail : `요청 실패 (${res.status})`);
+      }
+      return res.status === 204 ? null : res.json();
+    }
+
+    async function loadList() {
+      const posts = await request(API);
+      const tbody = $("post-list");
+      tbody.replaceChildren();
+      $("empty").classList.toggle("hidden", posts.length > 0);
+      for (const p of posts) {
+        const tr = document.createElement("tr");
+        const cells = [p.id, null, p.author, fmt(p.created_at)];
+        cells.forEach((value, i) => {
+          const td = document.createElement("td");
+          if (i === 1) {
+            td.className = "title";
+            const a = document.createElement("a");
+            a.textContent = p.title;
+            a.onclick = () => showDetail(p.id);
+            td.appendChild(a);
+          } else {
+            td.textContent = value;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function showDetail(id) {
+      current = await request(`${API}/${id}`);
+      $("detail-title").textContent = current.title;
+      $("detail-meta").textContent = `${current.author} · 작성 ${fmt(current.created_at)} · 수정 ${fmt(current.updated_at)}`;
+      $("detail-content").textContent = current.content;
+      $("detail").classList.remove("hidden");
+    }
+
+    function resetForm() {
+      editingId = null;
+      $("post-form").reset();
+      $("author").disabled = false;
+      $("form-heading").textContent = "새 글 작성";
+      $("btn-submit").textContent = "등록";
+      $("btn-cancel").classList.add("hidden");
+      $("message").textContent = "";
+    }
+
+    $("post-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = $("title").value.trim();
+      const content = $("content").value.trim();
+      const author = $("author").value.trim();
+      try {
+        if (editingId) {
+          await request(`${API}/${editingId}`, { method: "PUT", body: JSON.stringify({ title, content }) });
+        } else {
+          await request(API, { method: "POST", body: JSON.stringify({ title, content, author }) });
+        }
+        const id = editingId;
+        resetForm();
+        await loadList();
+        if (id) await showDetail(id);
+      } catch (err) {
+        $("message").textContent = err.message;
+      }
+    });
+
+    $("btn-edit").onclick = () => {
+      editingId = current.id;
+      $("author").value = current.author;
+      $("author").disabled = true;
+      $("title").value = current.title;
+      $("content").value = current.content;
+      $("form-heading").textContent = `${current.id}번 글 수정`;
+      $("btn-submit").textContent = "수정 저장";
+      $("btn-cancel").classList.remove("hidden");
+      $("title").focus();
+    };
+
+    $("btn-delete").onclick = async () => {
+      if (!confirm("이 글을 삭제할까요?")) return;
+      await request(`${API}/${current.id}`, { method: "DELETE" });
+      if (editingId === current.id) resetForm();
+      $("detail").classList.add("hidden");
+      current = null;
+      await loadList();
+    };
+
+    $("btn-close").onclick = () => $("detail").classList.add("hidden");
+    $("btn-cancel").onclick = resetForm;
+
+    loadList().catch((err) => { $("message").textContent = err.message; });
+  </script>
+</body>
+</html>

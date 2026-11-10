@@ -1,0 +1,24 @@
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 브라우저는 프론트엔드만 바라보고, API 호출은 백엔드 서비스로 프록시한다.
+    # BACKEND_URL 은 컨테이너 시작 시 envsubst 로 치환된다.
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+}

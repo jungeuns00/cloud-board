@@ -1,0 +1,22 @@
+# kube-prometheus-stack Helm values (로컬 kind 클러스터용 경량 설정)
+prometheus:
+  prometheusSpec:
+    # 릴리스 라벨이 없는 ServiceMonitor 도 수집하도록 허용
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 2d
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+grafana:
+  adminPassword: admin-demo
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+alertmanager:
+  enabled: false
+# kind 에서는 아래 컨트롤 플레인 컴포넌트 메트릭에 접근할 수 없어 꺼 둔다
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }

@@ -1,0 +1,14 @@
+# 백엔드 /metrics 를 Prometheus 가 수집하도록 등록
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: board-backend
+  namespace: board
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
