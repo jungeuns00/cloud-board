@@ -10,7 +10,7 @@ resources:
 images:
 - name: ghcr.io/jungeuns00/cloud-board-backend
   newName: ghcr.io/jungeuns00/cloud-board-backend
-  newTag: 626b7b4c774578d89924268c9639f0f245d3f1ad
+  newTag: fb50630b817f2621720787d9c7cb24827d092dda
 - name: ghcr.io/jungeuns00/cloud-board-frontend
   newName: ghcr.io/jungeuns00/cloud-board-frontend
-  newTag: 626b7b4c774578d89924268c9639f0f245d3f1ad
+  newTag: fb50630b817f2621720787d9c7cb24827d092dda
