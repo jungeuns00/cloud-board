@@ -109,8 +109,15 @@ def apply_filter(title: str, content: str) -> tuple[str, str]:
         return title, content
 
 
+@app.get("/livez")
+def livez():
+    """프로세스 생존 확인용. DB 장애 때문에 컨테이너가 재시작되지 않도록 DB를 확인하지 않는다."""
+    return {"status": "alive"}
+
+
 @app.get("/healthz")
 def healthz():
+    """트래픽 수신 가능 여부(readiness). DB 연결까지 확인한다."""
     with pool.connection() as conn:
         conn.execute("SELECT 1")
     return {"status": "ok"}

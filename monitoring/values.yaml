@@ -20,3 +20,10 @@ kubeEtcd: { enabled: false }
 kubeControllerManager: { enabled: false }
 kubeScheduler: { enabled: false }
 kubeProxy: { enabled: false }
+# v0.95.1 이미지는 arm64 빌드가 없어 Apple Silicon 에서 받을 수 없다. arm64 를 지원하는 버전으로 고정.
+prometheusOperator:
+  image:
+    tag: v0.94.0
+  prometheusConfigReloader:
+    image:
+      tag: v0.94.0

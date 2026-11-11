@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Cloud Board 최종 프로젝트 보고서</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1f2328; }
+  h1 { font-size: 20pt; margin: 0 0 4px; }
+  h2 { font-size: 14pt; border-bottom: 2px solid #1f3a5f; padding-bottom: 3px; margin: 22px 0 8px; break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14px 0 4px; break-after: avoid; }
+  .meta { color: #57606a; margin-bottom: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; break-inside: avoid; }
+  th, td { border: 1px solid #d0d7de; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #f0f3f6; }
+  pre { background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 4px; padding: 8px 10px; font-family: Menlo, monospace; font-size: 8.3pt; line-height: 1.45; white-space: pre-wrap; break-inside: avoid; }
+  code { font-family: Menlo, monospace; font-size: 9pt; background: #f0f3f6; padding: 0 3px; border-radius: 3px; }
+  .shot { border: 1px dashed #8c959f; color: #6e7781; padding: 22px; text-align: center; margin: 8px 0; break-inside: avoid; }
+  svg text { font-family: "Apple SD Gothic Neo", sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>Cloud Board — 클라우드 네이티브 게시판</h1>
+<div class="meta">최종 프로젝트 보고서 · 60201707 정은수 · 저장소: https://github.com/jungeuns00/cloud-board</div>
+
+<h2>1. 개요</h2>
+<p>프론트엔드와 백엔드를 독립된 컨테이너와 Kubernetes Deployment로 분리한 게시판 서비스를 로컬 Kubernetes(kind) 클러스터에 배포하고, Git 기반 CI/CD와 모니터링을 구성했다.</p>
+<table>
+  <tr><th style="width:24%">평가 항목</th><th style="width:14%">구현</th><th>내용</th></tr>
+  <tr><td>게시판 (70)</td><td>구현</td><td>게시글 목록 조회 · 상세 · 작성 · 수정 · 삭제</td></tr>
+  <tr><td>CI/CD (30)</td><td>구현</td><td>main push 시 GitHub Actions가 이미지 빌드·푸시, ArgoCD가 자동 배포</td></tr>
+  <tr><td>모니터링 (30)</td><td>구현</td><td>Prometheus가 백엔드 메트릭 수집, Grafana 대시보드 제공</td></tr>
+  <tr><td>서버리스 (30)</td><td>코드만 작성</td><td>욕설 필터 Lambda 함수와 백엔드 연동 코드 작성. AWS 배포는 하지 않음</td></tr>
+</table>
+
+<h2>2. 아키텍처</h2>
+<svg viewBox="0 0 720 330" width="100%" xmlns="http://www.w3.org/2000/svg" font-size="11">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#444"/></marker></defs>
+  <rect x="150" y="10" width="560" height="225" rx="8" fill="#f6f8fa" stroke="#8c959f"/>
+  <text x="160" y="27" font-weight="bold">kind 클러스터 (control-plane 1 + worker 1)</text>
+  <rect x="165" y="40" width="360" height="110" rx="6" fill="#fff" stroke="#1f6feb"/>
+  <text x="173" y="55" fill="#1f6feb">namespace: board</text>
+  <rect x="175" y="65" width="100" height="70" rx="5" fill="#ddf4ff" stroke="#1f6feb"/>
+  <text x="225" y="88" text-anchor="middle" font-weight="bold">frontend</text><text x="225" y="104" text-anchor="middle">nginx ×2</text><text x="225" y="120" text-anchor="middle">NodePort 30080</text>
+  <rect x="297" y="65" width="100" height="70" rx="5" fill="#dafbe1" stroke="#1a7f37"/>
+  <text x="347" y="88" text-anchor="middle" font-weight="bold">backend</text><text x="347" y="104" text-anchor="middle">FastAPI ×2</text><text x="347" y="120" text-anchor="middle">ClusterIP 8000</text>
+  <rect x="419" y="65" width="96" height="70" rx="5" fill="#fff8c5" stroke="#9a6700"/>
+  <text x="467" y="88" text-anchor="middle" font-weight="bold">postgres</text><text x="467" y="104" text-anchor="middle">StatefulSet</text><text x="467" y="120" text-anchor="middle">PVC 1Gi</text>
+  <line x1="275" y1="100" x2="295" y2="100" stroke="#444" marker-end="url(#a)"/>
+  <line x1="397" y1="100" x2="417" y2="100" stroke="#444" marker-end="url(#a)"/>
+  <rect x="540" y="40" width="160" height="110" rx="6" fill="#fff" stroke="#bc4c00"/>
+  <text x="548" y="55" fill="#bc4c00">namespace: monitoring</text>
+  <rect x="550" y="65" width="140" height="32" rx="5" fill="#fff1e5" stroke="#bc4c00"/><text x="620" y="85" text-anchor="middle">Prometheus</text>
+  <rect x="550" y="108" width="140" height="32" rx="5" fill="#fff1e5" stroke="#bc4c00"/><text x="620" y="128" text-anchor="middle">Grafana</text>
+  <line x1="620" y1="108" x2="620" y2="99" stroke="#444" marker-end="url(#a)"/>
+  <path d="M550,80 L470,58 L360,58 L350,64" fill="none" stroke="#444" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text x="440" y="52" font-size="10">/metrics 수집</text>
+  <rect x="165" y="165" width="360" height="58" rx="6" fill="#fff" stroke="#8250df"/>
+  <text x="173" y="180" fill="#8250df">namespace: argocd</text>
+  <text x="345" y="203" text-anchor="middle">ArgoCD — 저장소 k8s/ 경로를 감시해 자동 Sync · selfHeal · prune</text>
+  <line x1="345" y1="165" x2="345" y2="152" stroke="#444" marker-end="url(#a)"/>
+  <rect x="10" y="78" width="100" height="44" rx="5" fill="#fff" stroke="#444"/><text x="60" y="97" text-anchor="middle">브라우저</text><text x="60" y="112" text-anchor="middle">localhost:8080</text>
+  <line x1="110" y1="100" x2="173" y2="100" stroke="#444" marker-end="url(#a)"/>
+  <rect x="10" y="255" width="110" height="60" rx="5" fill="#fff" stroke="#444"/><text x="65" y="280" text-anchor="middle">개발자</text><text x="65" y="296" text-anchor="middle">git push (main)</text>
+  <rect x="160" y="255" width="170" height="60" rx="5" fill="#fff" stroke="#444"/><text x="245" y="275" text-anchor="middle" font-weight="bold">GitHub Actions</text><text x="245" y="291" text-anchor="middle">이미지 빌드(amd64/arm64)</text><text x="245" y="306" text-anchor="middle">→ 태그를 매니페스트에 커밋</text>
+  <rect x="370" y="255" width="130" height="60" rx="5" fill="#fff" stroke="#444"/><text x="435" y="280" text-anchor="middle" font-weight="bold">GHCR</text><text x="435" y="296" text-anchor="middle">컨테이너 이미지</text>
+  <rect x="540" y="255" width="170" height="60" rx="5" fill="#fff" stroke="#444"/><text x="625" y="280" text-anchor="middle" font-weight="bold">GitHub 저장소</text><text x="625" y="296" text-anchor="middle">k8s/kustomization.yaml</text>
+  <line x1="120" y1="285" x2="158" y2="285" stroke="#444" marker-end="url(#a)"/>
+  <line x1="330" y1="285" x2="368" y2="285" stroke="#444" marker-end="url(#a)"/>
+  <path d="M245,255 L245,244 L625,244 L625,253" fill="none" stroke="#444" marker-end="url(#a)"/>
+  <path d="M600,255 L600,240 L450,240 L450,225" fill="none" stroke="#8250df" stroke-dasharray="4 3" marker-end="url(#a)"/>
+</svg>
+
+<h3>구성 요소</h3>
+<table>
+  <tr><th style="width:18%">구성 요소</th><th style="width:26%">기술</th><th>역할</th></tr>
+  <tr><td>frontend</td><td>정적 HTML/JS, nginx</td><td>화면 제공. <code>/api/</code> 요청은 backend 서비스로 리버스 프록시하므로 브라우저는 프론트엔드 주소만 사용한다.</td></tr>
+  <tr><td>backend</td><td>Python FastAPI, psycopg</td><td>게시글 CRUD REST API, <code>/healthz</code>, <code>/metrics</code> 제공</td></tr>
+  <tr><td>postgres</td><td>PostgreSQL 16</td><td>게시글 저장. StatefulSet + PVC로 Pod 재시작 후에도 데이터 유지</td></tr>
+  <tr><td>CI</td><td>GitHub Actions, GHCR</td><td>이미지 빌드·푸시, 매니페스트 이미지 태그 갱신</td></tr>
+  <tr><td>CD</td><td>ArgoCD</td><td>Git 저장소 상태를 클러스터에 자동 반영 (GitOps)</td></tr>
+  <tr><td>모니터링</td><td>kube-prometheus-stack</td><td>Prometheus 수집, Grafana 시각화</td></tr>
+</table>
+
+<h3>API</h3>
+<table>
+  <tr><th style="width:12%">메서드</th><th style="width:28%">경로</th><th>설명</th></tr>
+  <tr><td>GET</td><td>/api/posts</td><td>게시글 목록 (최신순)</td></tr>
+  <tr><td>GET</td><td>/api/posts/{id}</td><td>게시글 상세. 없으면 404</td></tr>
+  <tr><td>POST</td><td>/api/posts</td><td>작성 (title, content, author). 성공 시 201</td></tr>
+  <tr><td>PUT</td><td>/api/posts/{id}</td><td>수정 (title, content)</td></tr>
+  <tr><td>DELETE</td><td>/api/posts/{id}</td><td>삭제. 성공 시 204</td></tr>
+</table>
+
+<h2>3. Dockerfile</h2>
+<h3>backend/Dockerfile</h3>
+<pre>FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+# 의존성 레이어를 먼저 만들어 코드만 바뀔 때 캐시를 재사용한다
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app ./app
+# root가 아닌 사용자로 실행
+RUN useradd --uid 10001 --no-create-home appuser
+USER 10001
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]</pre>
+<h3>frontend/Dockerfile</h3>
+<pre># 비root(uid 101)로 8080 포트에서 동작하는 nginx 이미지
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+ENV BACKEND_URL=http://backend:8000
+# /etc/nginx/templates/*.template 은 시작 시 envsubst 를 거쳐 conf.d 로 생성된다
+COPY default.conf.template /etc/nginx/templates/default.conf.template
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 8080</pre>
+<p>두 이미지 모두 비root 사용자로 실행한다. 프론트엔드는 백엔드 주소를 환경 변수 <code>BACKEND_URL</code>로 받아 이미지를 다시 빌드하지 않고도 환경별로 바꿀 수 있다.</p>
+
+<h2>4. Kubernetes 구성</h2>
+<table>
+  <tr><th style="width:26%">리소스</th><th>설정</th></tr>
+  <tr><td>Deployment frontend</td><td>replicas 2, readinessProbe <code>/healthz</code>, Service NodePort 30080 (kind 포트 매핑으로 호스트 8080에 노출)</td></tr>
+  <tr><td>Deployment backend</td><td>replicas 2, readiness/liveness <code>/healthz</code>(DB 연결 확인), ConfigMap과 Secret으로 DB 접속 정보 주입, Service ClusterIP</td></tr>
+  <tr><td>StatefulSet postgres</td><td>replicas 1, volumeClaimTemplates 1Gi, headless Service, <code>pg_isready</code> readinessProbe</td></tr>
+  <tr><td>Kustomize</td><td><code>k8s/kustomization.yaml</code>의 <code>images</code> 항목으로 이미지 태그를 관리</td></tr>
+</table>
+
+<h2>5. CI/CD</h2>
+<ol>
+  <li>main 브랜치에 <code>backend/</code> 또는 <code>frontend/</code> 변경이 push되면 <code>.github/workflows/ci.yaml</code>이 실행된다.</li>
+  <li><b>build</b> 잡이 두 서비스를 병렬로 빌드해 <code>ghcr.io/jungeuns00/cloud-board-{backend,frontend}:&lt;커밋 SHA&gt;</code>로 푸시한다. 로컬 클러스터가 Apple Silicon이므로 amd64/arm64 멀티 아키텍처로 빌드한다.</li>
+  <li><b>deploy</b> 잡이 <code>kustomize edit set image</code>로 매니페스트의 태그를 새 SHA로 바꿔 커밋한다. 워크플로는 클러스터에 직접 접근하지 않는다.</li>
+  <li>ArgoCD Application이 저장소의 <code>k8s/</code> 경로를 감시하다가 변경을 감지해 자동으로 Sync하고, Deployment가 롤링 업데이트된다.</li>
+</ol>
+<p>ArgoCD에는 <code>automated</code>(prune, selfHeal)를 설정해, 클러스터에서 리소스를 수동으로 바꾸거나 지워도 Git 상태로 되돌아간다.</p>
+<div class="shot">[스크린샷] GitHub Actions 실행 성공 화면 / ArgoCD UI의 cloud-board 애플리케이션 (Synced · Healthy)</div>
+
+<h2>6. 모니터링</h2>
+<ul>
+  <li>Helm으로 kube-prometheus-stack을 <code>monitoring</code> 네임스페이스에 설치했다.</li>
+  <li>백엔드는 <code>prometheus-fastapi-instrumentator</code>로 요청 수·응답 시간을 <code>/metrics</code>에 노출하고, 게시글 작성/수정/삭제 횟수를 커스텀 카운터(<code>board_posts_created_total</code> 등)로 추가했다.</li>
+  <li><code>ServiceMonitor</code>로 backend 서비스를 수집 대상에 등록했다 (15초 주기).</li>
+  <li>Grafana 대시보드 "Cloud Board"를 ConfigMap으로 등록했다: 실행 중인 Pod 수, 누적 게시글 수, 5xx 오류율, 요청 처리량, 응답 시간 p95, 작성/수정/삭제 추이, Pod 메모리 사용량.</li>
+</ul>
+<div class="shot">[스크린샷] Grafana "Cloud Board" 대시보드 / Prometheus Targets 화면</div>
+
+<h2>7. 서버리스 함수 (코드만 작성)</h2>
+<p><code>serverless/lambda_function.py</code>는 제목과 내용에서 금칙어를 <code>*</code>로 마스킹해 돌려주는 Lambda 함수다. 백엔드는 환경 변수 <code>FILTER_URL</code>이 설정되어 있으면 게시글 작성·수정 시 이 함수를 호출하고, 호출이 실패하면 원문을 그대로 저장한다. 함수 로직은 로컬에서 직접 호출해 확인했으나 AWS에 배포하지는 않았으므로 현재 클러스터에서는 필터링이 꺼져 있다.</p>
+
+<h2>8. 동작 확인</h2>
+<table>
+  <tr><th style="width:40%">확인 항목</th><th>결과</th></tr>
+  <tr><td>게시글 작성 (POST)</td><td>201, 생성된 글 반환</td></tr>
+  <tr><td>게시글 수정 (PUT)</td><td>200, 제목·내용·수정 시각 변경</td></tr>
+  <tr><td>게시글 삭제 (DELETE)</td><td>204, 이후 조회 시 404</td></tr>
+  <tr><td>목록 조회 (GET)</td><td>남은 글만 최신순으로 반환</td></tr>
+  <tr><td>빈 제목으로 작성</td><td>422 (입력 검증)</td></tr>
+  <tr><td>main push → 이미지 빌드 → 태그 커밋</td><td>워크플로 성공, <code>deploy: &lt;SHA&gt;</code> 커밋 자동 생성</td></tr>
+  <tr><td>ArgoCD 자동 배포</td><td>Application 등록 후 board 네임스페이스 리소스 자동 생성</td></tr>
+</table>
+<div class="shot">[스크린샷] 게시판 화면 / <code>kubectl -n board get deploy,pod,svc,pvc</code> / psql 조회 결과</div>
+
+<h2>9. 제한사항</h2>
+<ul>
+  <li><b>단일 노드 DB</b>: PostgreSQL이 복제 없이 Pod 1개로 동작한다. Pod나 노드 장애 시 서비스가 중단되며 백업도 구성하지 않았다.</li>
+  <li><b>비밀 정보 관리</b>: DB 비밀번호가 데모용 값으로 Git 저장소의 Secret 매니페스트에 평문으로 들어 있다. 실제 운영에서는 Sealed Secrets나 External Secrets가 필요하다.</li>
+  <li><b>인증 없음</b>: 로그인 기능이 없어 누구나 모든 글을 수정·삭제할 수 있다.</li>
+  <li><b>로컬 클러스터</b>: kind는 Docker 컨테이너를 노드로 쓰므로 LoadBalancer, Ingress, 외부 도메인이 없다. 프론트엔드는 NodePort, ArgoCD와 Grafana는 port-forward로 접근한다.</li>
+  <li><b>배포 지연</b>: ArgoCD가 저장소를 주기적으로(기본 3분) 확인하므로 push 후 반영까지 수 분이 걸릴 수 있다. Webhook은 로컬 클러스터라 구성하지 않았다.</li>
+  <li><b>모니터링 범위</b>: Alertmanager 알림은 꺼 두었고, kind 환경에서 수집할 수 없는 etcd·scheduler 등 컨트롤 플레인 메트릭은 제외했다. 로그 수집은 구성하지 않았다.</li>
+  <li><b>자동 확장 없음</b>: HPA를 구성하지 않아 replica 수가 고정이다.</li>
+  <li><b>서버리스</b>: Lambda 함수는 코드만 작성했고 배포·연동 시연은 하지 않았다.</li>
+</ul>
+
+</body>
+</html>
